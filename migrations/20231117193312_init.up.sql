@@ -12,8 +12,8 @@ CREATE TABLE
         id UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
         email VARCHAR(30) UNIQUE NOT NULL,
         password VARCHAR(20) NOT NULL,
-        user_role INT NOT NULL,
-        CONSTRAINT fk_user_role FOREIGN KEY (user_role) REFERENCES UserRoles(id),
+        user_role_id INT NOT NULL,
+        CONSTRAINT fk_user_role FOREIGN KEY (user_role_id) REFERENCES UserRoles(id),
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         upated_at TIMESTAMP 
     );

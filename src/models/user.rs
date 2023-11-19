@@ -5,32 +5,48 @@ use uuid;
 #[derive(Clone, Deserialize, Serialize, sqlx::FromRow)]
 pub struct User {
     pub id: uuid::Uuid,
-    pub username: String,
     pub email: String,
     pub password: String,
+    pub user_role_id: i32,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "updatedAt")]
     pub updated_at: Option<DateTime<Utc>>,
-    pub is_admin: i8,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct CreateUserSchema {
+#[derive(Clone, Deserialize, Serialize, sqlx::FromRow)]
+pub struct UserProfile {
+    pub id: uuid::Uuid,
+    pub first_name: String,
+    pub second_name: String,
+    pub date_of_birth: String,
     pub username: String,
-    pub email: String,
-    pub password: String,
+    pub profile_picture_url: String,
+    pub user_id: uuid::Uuid,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct UpdateUserSchema {
-    pub username: Option<String>,
-    pub email: Option<String>,
-    pub password: Option<String>,
+#[derive(Clone, Deserialize, Serialize, sqlx::FromRow)]
+pub struct UserContactInformation {
+    pub id: uuid::Uuid,
+    pub contact: String,
+    pub user_profile_id: uuid::Uuid,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct LoginUserSchema {
-    pub username: Option<String>,
-    pub password: Option<String>,
+#[derive(Clone, Deserialize, Serialize, sqlx::FromRow)]
+pub struct UserBankingInformation {
+    pub id: uuid::Uuid,
+    pub contact: String,
+    pub user_profile_id: uuid::Uuid,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: Option<DateTime<Utc>>,
 }
