@@ -1,6 +1,6 @@
 -- Add down migration script here
-DROP TABLE UserRoles;
-DROP TABLE UserContactInfo;
-DROP TABLE UserBankingInfo;
+DROP TABLE UserBankingInformation;
+DROP TABLE UserContactInformation;
 DROP TABLE UserProfiles;
 DROP TABLE Users;
+DROP TABLE UserRoles;
