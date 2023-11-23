@@ -34,7 +34,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let cors = Cors::default()
-            .allowed_origin("0.0.0.0")
+            .allowed_origin("127.0.0.1:3000")
             .allowed_methods(vec!["GET", "POST", "DELETE", "PATCH"])
             .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
             .allowed_header(http::header::CONTENT_TYPE)
@@ -42,7 +42,7 @@ async fn main() -> std::io::Result<()> {
 
          App::new()
             .app_data(web::Data::new(state.clone()))
-            .wrap(cors)
+            .wrap(Cors::permissive())
             //.wrap(Logger::default())
             .service(web::scope("/api")
                 .configure(services::user::init_user_service)
