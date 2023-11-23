@@ -72,4 +72,3 @@ impl FromRequest for JwtMiddleware {
         ready(Ok(JwtMiddleware { user_id }))
     }
 }
-
