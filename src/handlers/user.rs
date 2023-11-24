@@ -1,4 +1,4 @@
-use crate::models::user::{User, UserProfile, filter_user_record, filter_userprofile_record };
+use crate::models::user::{User, UserProfile, UserInformationModel, filter_user_record, filter_userprofile_record};
 use crate::schema::user;
 
 use crate::{
@@ -12,19 +12,71 @@ use argon2::{
     Argon2,
 };
 use sqlx::Row;
+use uuid::Uuid;
 
 #[get("/")]
 pub async fn get_all_users(state: web::Data<AppState>) -> impl Responder {
-    web::Bytes::from_static(b"get all users") 
-    //let query_result = sqlx::query_as!()
+    let users_query = sqlx::query_as!(UserInformationModel, 
+            "SELECT users.id, users.email,
+                    userprofiles.username, userprofiles.first_name, userprofiles.second_name, userprofiles.profile_picture_url, userprofiles.date_of_birth,
+                    userroles.role_name
+             FROM users 
+             JOIN userprofiles
+             ON users.id = userprofiles.user_id
+             JOIN userroles
+             ON users.user_role_id = userroles.id")
+        .fetch_all(state.get_db())
+        .await
+        .unwrap();
+
+    match users_query {
+        users => {
+            let user_response = serde_json::json!({"status": "success","data": serde_json::json!({
+                "users":  &users
+            })});
+
+            return HttpResponse::Ok().json(user_response);
+        }
+    }
 }
 
 #[get("/{id}")]
 pub async fn get_user(
-    path: web::Path<i32>,
+    path: web::Path<uuid::Uuid>,
     state: web::Data<AppState>
-) -> String {
-    format!("get user by {}", path.into_inner()).to_string()
+) -> impl Responder {
+    let user_id = Uuid::parse_str(path.into_inner().to_string().as_str());
+    match user_id {
+        Ok(id) => {
+            let user_query = sqlx::query_as!(UserInformationModel,
+                "SELECT users.id, users.email,
+                        userprofiles.username, userprofiles.first_name, userprofiles.second_name, userprofiles.profile_picture_url, userprofiles.date_of_birth,
+                        userroles.role_name
+                    FROM users 
+                    JOIN userprofiles
+                    ON users.id = userprofiles.user_id
+                    JOIN userroles
+                    ON users.user_role_id = userroles.id
+                    WHERE users.id = $1", id)
+                .fetch_one(state.get_db())
+                .await
+                .unwrap();
+
+            match user_query {
+                user => {
+                    let user_response = serde_json::json!({"status": "success","data": serde_json::json!({
+                        "users":  &user
+                    })});
+        
+                    return HttpResponse::Ok().json(user_response);
+                }
+            }
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"status": "error","message": format!("{:?}", e)}));
+        }
+    }
 }
 
 #[post("/register")]
