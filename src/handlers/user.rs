@@ -279,20 +279,23 @@ pub async fn get_skills(
         _ => "invalid url".to_string()
     };
 
-    let options = ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare()).await.unwrap();
+    let options = ClientOptions::parse(&client_uri).await.unwrap();
     let client = Client::with_options(options).unwrap();
 
     let skills = client.database("freelancify").collection("skills");
-    let doc = skills.find_one(bson::doc! {
-        "user": user_id, 
-    }, None).await.expect("Missing document"); 
+    let filter = bson::doc! { "user": user_id };
 
-    match doc {
+    let result = skills.find_one(Some(filter), None).await.unwrap();
+
+    match result {
         Some(doc) => {
-            
+            let response = serde_json::json!({"status": "successs"});
+
+            return HttpResponse::Ok().json(response);
         }
         None => {
-
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"status": "error", "message": "could not find the required document"}))
         }
     }
 }
