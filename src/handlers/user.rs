@@ -2,7 +2,7 @@ use crate::models::user::{User, UserProfile, UserInformationModel, filter_user_r
 use crate::schema::user;
 
 use crate::{
-    AppState,
+    AppState, config,
 };
 use actix_web::{
     get, post, web, HttpResponse, Responder,
@@ -13,6 +13,7 @@ use argon2::{
 };
 use sqlx::Row;
 use uuid::Uuid;
+use mongodb::{Client, options::{ClientOptions, ResolverConfig}};
 
 #[get("/")]
 pub async fn get_all_users(state: web::Data<AppState>) -> impl Responder {
@@ -77,6 +78,64 @@ pub async fn get_user(
                 .json(serde_json::json!({"status": "error","message": format!("{:?}", e)}));
         }
     }
+}
+
+#[get("/freelancers")]
+pub async fn get_all_freelancers(
+    state: web::Data<AppState>
+) -> impl Responder {
+    let users_query = sqlx::query_as!(UserInformationModel, 
+            "SELECT users.id, users.email,
+                    userprofiles.username, userprofiles.first_name, userprofiles.second_name, userprofiles.profile_picture_url, userprofiles.date_of_birth,
+                    userroles.role_name
+             FROM users 
+             JOIN userprofiles
+             ON users.id = userprofiles.user_id
+             JOIN userroles
+             ON users.user_role_id = userroles.id
+             WHERE users.user_role_id = 1")
+        .fetch_all(state.get_db())
+        .await
+        .unwrap();
+
+    match users_query {
+        users => {
+            let user_response = serde_json::json!({"status": "success","data": serde_json::json!({
+                "users":  &users
+            })});
+
+            return HttpResponse::Ok().json(user_response);
+        }
+    } 
+}
+
+#[get("/employers")]
+pub async fn get_all_employers(
+    state: web::Data<AppState>
+) -> impl Responder {
+    let users_query = sqlx::query_as!(UserInformationModel, 
+            "SELECT users.id, users.email,
+                    userprofiles.username, userprofiles.first_name, userprofiles.second_name, userprofiles.profile_picture_url, userprofiles.date_of_birth,
+                    userroles.role_name
+             FROM users 
+             JOIN userprofiles
+             ON users.id = userprofiles.user_id
+             JOIN userroles
+             ON users.user_role_id = userroles.id
+             WHERE users.user_role_id = 2")
+        .fetch_all(state.get_db())
+        .await
+        .unwrap();
+
+    match users_query {
+        users => {
+            let user_response = serde_json::json!({"status": "success","data": serde_json::json!({
+                "users":  &users
+            })});
+
+            return HttpResponse::Ok().json(user_response);
+        }
+    } 
 }
 
 #[post("/register")]
@@ -172,3 +231,78 @@ pub async fn create_profile(
         }
     } 
 }
+
+#[post("/freelancers/skills")]
+pub async fn add_skills(
+    body: web::Json<user::FreelancerSkillsSchema>,
+    state: web::Data<AppState>
+) -> impl Responder {
+    let client_uri = match config::get("BUILD").as_str() {
+        "PROD" => { config::get("MONGODB_URL") }
+        "DEV" => { config::get("DEV_MONGODB_URL") }
+        _ => "invalid url".to_string()
+    };
+
+    let options = ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare()).await.unwrap();
+    let client = Client::with_options(options).unwrap();
+
+    let new_doc = bson::doc!{
+        "user": body.id.to_string(),
+        "skills": body.skills.to_owned(),
+    };
+
+    let skills = client.database("freelancify").collection("skills");
+    let insert_result = skills.insert_one(new_doc.clone(), None).await;
+
+    match insert_result {
+        Ok(id) => {
+            let response = serde_json::json!({"status": "success"});
+
+            return HttpResponse::Ok().json(response);
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError()
+                .json(serde_json::json!({"status": "error", "message" : format!("{:?}", e)}))
+        }
+    }
+}
+
+#[get("/freelancers/{id}/skills")]
+pub async fn get_skills(
+    path: web::Path<uuid::Uuid>,
+    state: web::Data<AppState> 
+) -> impl Responder {
+    let user_id = path.into_inner().to_string().as_str();
+    let client_uri = match config::get("BUILD").as_str() {
+        "PROD" => { config::get("MONGODB_URL") }
+        "DEV" => { config::get("DEV_MONGODB_URL") }
+        _ => "invalid url".to_string()
+    };
+
+    let options = ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare()).await.unwrap();
+    let client = Client::with_options(options).unwrap();
+
+    let skills = client.database("freelancify").collection("skills");
+    let doc = skills.find_one(bson::doc! {
+        "user": user_id, 
+    }, None).await.expect("Missing document"); 
+
+    match doc {
+        Some(doc) => {
+            
+        }
+        None => {
+
+        }
+    }
+}
+
+/*
+#[post("/add_education")]
+
+#[post("/add_experience")]
+
+#[post("/add_contact_details")]
+
+#[post("/add_banking_details")]
+*/
