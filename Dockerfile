@@ -1,39 +1,34 @@
-# Use the official Rust image as the base image for building
-FROM rust:1.67
+FROM messense/rust-musl-cross:x86_64-musl as chef
 
-# Set the working directory inside the container
-WORKDIR /app
+RUN apt-get update -y && \
+  apt-get install -y pkg-config make g++ libssl-dev && \
+  rustup target add x86_64-unknown-linux-gnu
 
-# Copy the Rust project files (Cargo.toml and Cargo.lock) to the container
-COPY ./Cargo.toml ./Cargo.lock ./
+ENV SQLX_OFFLINE=true
+RUN cargo install cargo-chef
+WORKDIR /user
 
-# Build the application without running it
-RUN cargo build --release
-
-# Copy the source code to the container
+FROM chef AS planner
+# Copy source code from previous stage
 COPY . .
+# Generate info for caching dependencies
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Build the release version of the application
-RUN cargo build --release
+FROM chef AS builder
+COPY --from=planner /user/recipe.json recipe.json
+# Build & cache dependencies
+RUN cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
+# Copy source code from previous stage
+COPY . .
+# Build application
+RUN cargo build --release --target x86_64-unknown-linux-musl
 
-# Install sqlx cli
-RUN cargo install sqlx-cli
+# Create a new stage with a minimal image
+FROM scratch
+COPY --from=builder /user/target/x86_64-unknown-linux-musl/release/user /user
+ENTRYPOINT ["/user"]
+EXPOSE 3000
 
-# Set environment variables (if needed)
-ENV DATABASE_URL="postgres://{appname}_dev:dev@localhost:5432/{appname}user?sslmode=disable"
-
-# Run SQLx migrations using the SQLx CLI
-RUN sqlx migrate run
-
-# Create a minimal runtime image
-FROM debian:buster-slim
-
-# Copy the compiled binary from the builder stage to the final image
-COPY --from=builder /app/target/release/user /usr/local/bin/user
-
-# Expose the port on which the Actix application will listen
-EXPOSE 8080
-
-# Run the Actix application
-CMD ["user"]
+#ENV DEV_DATABASE_URL="postgres://freelancify_dev:dev@localhost:5432/freelancify_user_service_dev?sslmode=disable"
+#ENV DEV_MONGODB_URL="mongodb+srv://freelancify-dev:rxOred%40123@cluster0.8rpokrd.mongodb.net/freelancify?retryWrites=true&w=majority"
 

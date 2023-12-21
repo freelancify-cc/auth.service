@@ -78,6 +78,12 @@ pub struct UserInformationModel {
     pub role_name: String,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct UserSkills {
+    pub user: String,
+    pub skills: Vec<String>,
+}
+
 pub fn filter_user_record(user: &User) -> FilteredUserModel {
     FilteredUserModel {
         id: user.id,

@@ -1,22 +1,26 @@
-use crate::models::user::{User, UserProfile, UserInformationModel, filter_user_record, filter_userprofile_record};
+use crate::models::user::{User, UserProfile, UserInformationModel, filter_user_record, filter_userprofile_record, UserSkills};
 use crate::schema::user;
 
 use crate::{
-    AppState, config,
+    AppState, config, middleware,
 };
+
 use actix_web::{
-    get, post, web, HttpResponse, Responder,
+    get, post, web, HttpResponse, Responder, HttpRequest, HttpMessage, Result, Error,
 };
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
-use sqlx::Row;
+use sqlx::{Row, migrate};
 use uuid::Uuid;
 use mongodb::{Client, options::{ClientOptions, ResolverConfig}};
 
 #[get("/")]
-pub async fn get_all_users(state: web::Data<AppState>) -> impl Responder {
+pub async fn get_all_users(
+    state: web::Data<AppState>,
+    _: middleware::auth::JwtMiddleware
+    ) -> impl Responder {
     let users_query = sqlx::query_as!(UserInformationModel, 
             "SELECT users.id, users.email,
                     userprofiles.username, userprofiles.first_name, userprofiles.second_name, userprofiles.profile_picture_url, userprofiles.date_of_birth,
@@ -44,7 +48,8 @@ pub async fn get_all_users(state: web::Data<AppState>) -> impl Responder {
 #[get("/{id}")]
 pub async fn get_user(
     path: web::Path<uuid::Uuid>,
-    state: web::Data<AppState>
+    state: web::Data<AppState>,
+    _: middleware::auth::JwtMiddleware
 ) -> impl Responder {
     let user_id = Uuid::parse_str(path.into_inner().to_string().as_str());
     match user_id {
@@ -82,7 +87,8 @@ pub async fn get_user(
 
 #[get("/freelancers")]
 pub async fn get_all_freelancers(
-    state: web::Data<AppState>
+    state: web::Data<AppState>,
+    _: middleware::auth::JwtMiddleware
 ) -> impl Responder {
     let users_query = sqlx::query_as!(UserInformationModel, 
             "SELECT users.id, users.email,
@@ -92,8 +98,7 @@ pub async fn get_all_freelancers(
              JOIN userprofiles
              ON users.id = userprofiles.user_id
              JOIN userroles
-             ON users.user_role_id = userroles.id
-             WHERE users.user_role_id = 1")
+             ON users.user_role_id = 1")
         .fetch_all(state.get_db())
         .await
         .unwrap();
@@ -106,12 +111,13 @@ pub async fn get_all_freelancers(
 
             return HttpResponse::Ok().json(user_response);
         }
-    } 
+    }
 }
 
 #[get("/employers")]
 pub async fn get_all_employers(
-    state: web::Data<AppState>
+    state: web::Data<AppState>,
+    _: middleware::auth::JwtMiddleware
 ) -> impl Responder {
     let users_query = sqlx::query_as!(UserInformationModel, 
             "SELECT users.id, users.email,
@@ -121,8 +127,7 @@ pub async fn get_all_employers(
              JOIN userprofiles
              ON users.id = userprofiles.user_id
              JOIN userroles
-             ON users.user_role_id = userroles.id
-             WHERE users.user_role_id = 2")
+             ON users.user_role_id = 2")
         .fetch_all(state.get_db())
         .await
         .unwrap();
@@ -135,7 +140,7 @@ pub async fn get_all_employers(
 
             return HttpResponse::Ok().json(user_response);
         }
-    } 
+    }
 }
 
 #[post("/register")]
@@ -152,7 +157,9 @@ pub async fn register_user(
 
     if exists {
         return HttpResponse::Conflict().json(
-            serde_json::json!({"status": "fail","message": "User with that email already exists"}),
+            serde_json::json!({
+                "status": "fail","message": "User with that email already exists"
+            }),
         );
     }
 
@@ -174,9 +181,12 @@ pub async fn register_user(
 
     match query_result {
         Ok(user) => {
-            let user_response = serde_json::json!({"status": "success","data": serde_json::json!({
-                "user":  filter_user_record(&user)
-            })});
+            let user_response = serde_json::json!({
+                "status": "success",
+                "data": serde_json::json!({
+                    "user":  filter_user_record(&user)
+                })
+            });
 
             return HttpResponse::Ok().json(user_response);
         }
@@ -219,9 +229,12 @@ pub async fn create_profile(
 
     match query_result {
         Ok(user) => {
-            let user_response = serde_json::json!({"status": "success","data": serde_json::json!({
-                "profile":  filter_userprofile_record(&user)
-            })});
+            let user_response = serde_json::json!({
+                "status": "success",
+                "data": serde_json::json!({
+                    "profile":  filter_userprofile_record(&user)
+                })
+            });
 
             return HttpResponse::Ok().json(user_response);
         }
@@ -232,30 +245,34 @@ pub async fn create_profile(
     } 
 }
 
-#[post("/freelancers/skills")]
 pub async fn add_skills(
+    req: HttpRequest,
     body: web::Json<user::FreelancerSkillsSchema>,
-    state: web::Data<AppState>
-) -> impl Responder {
+    _: web::Data<AppState>,
+    _: middleware::auth::JwtMiddleware
+) -> HttpResponse {
     let client_uri = match config::get("BUILD").as_str() {
-        "PROD" => { config::get("MONGODB_URL") }
-        "DEV" => { config::get("DEV_MONGODB_URL") }
+        "prod" => { config::get("MONGODB_URL") }
+        "dev" => { config::get("DEV_MONGODB_URL") }
         _ => "invalid url".to_string()
     };
 
+    let extension = req.extensions();
+    let user_id = extension.get::<uuid::Uuid>().unwrap(); 
+    
     let options = ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare()).await.unwrap();
     let client = Client::with_options(options).unwrap();
 
     let new_doc = bson::doc!{
-        "user": body.id.to_string(),
+        "user": user_id.to_string(),
         "skills": body.skills.to_owned(),
     };
 
     let skills = client.database("freelancify").collection("skills");
-    let insert_result = skills.insert_one(new_doc.clone(), None).await;
+    let insert_result = skills.insert_one(new_doc, None).await;
 
     match insert_result {
-        Ok(id) => {
+        Ok(_) => {
             let response = serde_json::json!({"status": "success"});
 
             return HttpResponse::Ok().json(response);
@@ -267,40 +284,46 @@ pub async fn add_skills(
     }
 }
 
-#[get("/freelancers/{id}/skills")]
 pub async fn get_skills(
     path: web::Path<uuid::Uuid>,
-    state: web::Data<AppState> 
-) -> impl Responder {
-    let user_id = path.into_inner().to_string().as_str();
+    _: web::Data<AppState>, 
+    _: middleware::auth::JwtMiddleware
+) -> Result<impl Responder> {
+    let user_id = path.into_inner().to_string(); 
     let client_uri = match config::get("BUILD").as_str() {
-        "PROD" => { config::get("MONGODB_URL") }
-        "DEV" => { config::get("DEV_MONGODB_URL") }
+        "prod" => { config::get("MONGODB_URL") }
+        "dev" => { config::get("DEV_MONGODB_URL") }
         _ => "invalid url".to_string()
     };
 
     let options = ClientOptions::parse(&client_uri).await.unwrap();
     let client = Client::with_options(options).unwrap();
-
-    let skills = client.database("freelancify").collection("skills");
-    let filter = bson::doc! { "user": user_id };
+ 
+    let skills = client.database("freelancify").collection::<UserSkills>("skills");
+    let filter = bson::doc! { "user": user_id.to_string() };
 
     let result = skills.find_one(Some(filter), None).await.unwrap();
 
     match result {
         Some(doc) => {
-            let response = serde_json::json!({"status": "successs"});
+            let response = serde_json::json!({
+                "status": "successs",
+                "data": serde_json::json!({
+                    "skills": &doc
+                }) 
+            });
 
-            return HttpResponse::Ok().json(response);
+            return Ok(HttpResponse::Ok().json(response));
         }
         None => {
-            return HttpResponse::InternalServerError()
-                .json(serde_json::json!({"status": "error", "message": "could not find the required document"}))
+            return  Ok(HttpResponse::InternalServerError()
+                .json(serde_json::json!({"status": "error", "message": "could not find the required document"})))
         }
     }
 }
 
 /*
+
 #[post("/add_education")]
 
 #[post("/add_experience")]

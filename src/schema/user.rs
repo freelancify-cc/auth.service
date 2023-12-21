@@ -32,18 +32,15 @@ pub struct LoginUserSchema {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FreelancerSkillsSchema {
-    pub id: uuid::Uuid,
     pub skills: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FreelancerExperienceSchema {
-    pub id: uuid::Uuid,
     pub experience: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FreelancerEducationSchema {
-    pub id: uuid::Uuid,
     pub education: Vec<String>,
 }

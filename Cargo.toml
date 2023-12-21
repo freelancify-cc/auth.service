@@ -23,4 +23,8 @@ dotenv = "0.15.0"
 argon2 = "0.5.2"
 bson = "2.7.0"
 mongodb = "2.7.1"
+utoipa = "4.1.0"
+utoipa-swagger-ui = "5.0.0"
+log = "0.4.20"
+openssl-sys = "0.9.97"
 

@@ -1,3 +1,4 @@
+use crate::middleware;
 use crate::schema::token::TokenClaims;
 use crate::schema::user::LoginUserSchema;
 use crate::{config, state::AppState};
@@ -8,6 +9,7 @@ use actix_web::{
     cookie::{time::Duration as ActixWebDuration, Cookie},
     get, post, web, HttpResponse, Responder,
 };
+use actix_web::{HttpMessage, HttpRequest};
 use argon2::{
     password_hash::{PasswordHash, PasswordVerifier},
     Argon2,
@@ -68,4 +70,30 @@ pub async fn authenticate(
 }
 
 #[get("/get_public_key")]
-pub async fn get_public_key(state: web::Data<AppState>) -> String {}
+pub async fn get_public_key(_: web::Data<AppState>) -> impl Responder {
+    let key = config::get("JWT_PUBLIC_KEY");
+    let response = serde_json::json!({
+        "status": "sucess",
+        "public_key": key
+    });
+
+    return HttpResponse::Ok().json(response);
+}
+
+#[get("/userinfo")]
+pub async fn get_userinfo(
+    req: HttpRequest,
+    _: web::Data<AppState>,
+    _: middleware::auth::JwtMiddleware,
+) -> impl Responder {
+    let extension = req.extensions();
+    let user_id = extension.get::<uuid::Uuid>().unwrap();
+
+    log::info!("calling userinfo");
+    let user_response = serde_json::json!({
+        "status": "success",
+        "sub": user_id
+    });
+
+    return HttpResponse::Ok().json(user_response);
+}

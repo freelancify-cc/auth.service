@@ -7,9 +7,9 @@ use actix_web::{http, web, FromRequest, HttpMessage, HttpRequest};
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::Serialize;
 
-use crate::model::TokenClaims; // error here
-use crate::AppState;
 use crate::config;
+use crate::schema::token::TokenClaims;
+use crate::AppState;
 
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
@@ -50,12 +50,16 @@ impl FromRequest for JwtMiddleware {
             return ready(Err(ErrorUnauthorized(json_error)));
         }
 
+        log::info!("gets here");
         let claims = match decode::<TokenClaims>(
             &token.unwrap(),
             &DecodingKey::from_secret(config::get("JWT_PUBLIC_KEY").as_ref()),
             &Validation::default(),
         ) {
-            Ok(c) => c.claims,
+            Ok(c) => {
+                log::info!("geta hre");
+                c.claims
+            }
             Err(_) => {
                 let json_error = ErrorResponse {
                     status: "fail".to_string(),
