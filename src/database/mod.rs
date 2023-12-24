@@ -10,6 +10,7 @@ pub async fn get_pool() -> PostgresPool {
         _ => "".to_string(),
     };
 
+    log::info!("{}", url);
     let pool = match PgPoolOptions::new().max_connections(10).connect(&url).await {
         Ok(pool) => {
             println!("✅Connection to the database is successful!");

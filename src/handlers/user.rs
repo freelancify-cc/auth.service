@@ -52,8 +52,10 @@ pub async fn get_user(
     _: middleware::auth::JwtMiddleware
 ) -> impl Responder {
     let user_id = Uuid::parse_str(path.into_inner().to_string().as_str());
+ 
     match user_id {
         Ok(id) => {
+            log::info!("");
             let user_query = sqlx::query_as!(UserInformationModel,
                 "SELECT users.id, users.email,
                         userprofiles.username, userprofiles.first_name, userprofiles.second_name, userprofiles.profile_picture_url, userprofiles.date_of_birth,

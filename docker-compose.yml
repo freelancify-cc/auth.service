@@ -1,26 +1,33 @@
 version: '3'
 services:
   api:
-    image: rxored/user
+    image: user
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: "postgres://postgres:dev@db:5432"
+      APPNAME: user 
+      BUILD: dev
+      JWT_PUBLIC_KEY: secret
+      JWT_PRIVATE_KEY: secret
+      DATABASE_URL: "postgres://freelancify_dev:dev@db:5432/freelancify_user_service_dev?sslmode=disable"
+      DEV_DATABASE_URL: "postgres://freelancify_dev:dev@db:5432/freelancify_user_service_dev?sslmode=disable"
+      MONGODB_URL: "mongodb+srv://freelancify-dev:rxOred%40123@cluster0.8rpokrd.mongodb.net/freelancify?retryWrites=true&w=majority"
+      DEV_MONGODB_URL: "mongodb+srv://freelancify-dev:rxOred%40123@cluster0.8rpokrd.mongodb.net/freelancify?retryWrites=true&w=majority"
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "8002:8002"
     depends_on:
       - db
+    
   db:
     image: postgres:15.2-alpine
-    restart: always
+    restart: always 
     environment:
-      POSTGRES_PASSWORD: dev
+      - POSTGRES_PASSWORD=dev
+      - POSTGRES_USER=freelancify_dev
+      - POSTGRES_DB=freelancify_user_service_dev
     ports:
-      - "5432:5432"
-    volumes:
-      - db:/var/lib/postgresql/data
+      - "5432:5432" 
 
-volumes:
-  db:
-    driver: local
