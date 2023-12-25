@@ -204,16 +204,16 @@ pub async fn create_profile(
     body: web::Json<user::CreateUserProfileSchema>,
     state: web::Data<AppState>
 ) -> impl Responder {
-    let exists: bool = sqlx::query("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+    let exists: bool = sqlx::query("SELECT EXISTS(SELECT 1 FROM userprofiles WHERE user_id = $1)")
         .bind(body.id)
         .fetch_one(state.get_db())
         .await
         .unwrap()
         .get(0);
 
-    if !exists {
+    if exists {
         return HttpResponse::Conflict().json(
-            serde_json::json!({"status": "fail","message": "User with that id does not exist"}),
+            serde_json::json!({"status": "fail","message": "Profile for this user already exists"}),
         );
     }
     let query_result = sqlx::query_as!(
@@ -261,6 +261,19 @@ pub async fn add_skills(
 
     let extension = req.extensions();
     let user_id = extension.get::<uuid::Uuid>().unwrap(); 
+
+    let exists: bool = sqlx::query("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+        .bind(user_id)
+        .fetch_one(state.get_db())
+        .await
+        .unwrap()
+        .get(0);
+
+    if !exists {
+        return HttpResponse::Conflict().json(
+            serde_json::json!({"status": "fail","message": "User with that id does not exist"}),
+        );
+    }
     
     let options = ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare()).await.unwrap();
     let client = Client::with_options(options).unwrap();
@@ -292,6 +305,19 @@ pub async fn get_skills(
     _: middleware::auth::JwtMiddleware
 ) -> Result<impl Responder> {
     let user_id = path.into_inner().to_string(); 
+    let exists: bool = sqlx::query("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+        .bind(body.id)
+        .fetch_one(state.get_db())
+        .await
+        .unwrap()
+        .get(0);
+
+    if !exists {
+        return HttpResponse::Conflict().json(
+            serde_json::json!({"status": "fail","message": "User with that id does not exist"}),
+        );
+    }
+
     let client_uri = match config::get("BUILD").as_str() {
         "prod" => { config::get("MONGODB_URL") }
         "dev" => { config::get("DEV_MONGODB_URL") }

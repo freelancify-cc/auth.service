@@ -1,0 +1,20 @@
+syntax = "proto3"
+package userinfo;
+
+// Define your message types first
+
+message UserInfoResponse {
+    string status = 1;
+    string sub = 2;
+}
+
+// Define the gRPC service
+service UserInfoService {
+    rpc GetUserInfo (UserInfoRequest) returns (UserInfoResponse);
+}
+
+// Define the request message for the endpoint
+message UserInfoRequest {
+    string token = 1;
+}
+
