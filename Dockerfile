@@ -1,39 +1,21 @@
-# Use the official Rust image as the base image for building
-FROM rust:1.67
+FROM rust:1.68-alpine as builder
+RUN apk add openssl-dev musl-dev
+WORKDIR /user
+COPY . . 
+ENV SQLX_OFFLINE true
 
-# Set the working directory inside the container
-WORKDIR /app
+#ENV DATABASE_URL="postgres://freelancify_dev:dev@localhost:5432/freelancify_user_service_dev?sslmode=disable"
+#ENV MONGODB_URL="mongodb+srv://freelancify-dev:rxOred%40123@cluster0.8rpokrd.mongodb.net/freelancify?retryWrites=true&w=majority"
 
-# Copy the Rust project files (Cargo.toml and Cargo.lock) to the container
-COPY ./Cargo.toml ./Cargo.lock ./
+#ENV DEV_DATABASE_URL="postgres://freelancify_dev:dev@localhost:5432/freelancify_user_service_dev?sslmode=disable"
+#ENV DEV_MONGODB_URL="mongodb+srv://freelancify-dev:rxOred%40123@cluster0.8rpokrd.mongodb.net/freelancify?retryWrites=true&w=majority"
 
-# Build the application without running it
 RUN cargo build --release
 
-# Copy the source code to the container
-COPY . .
+FROM rust:1.68-alpine as runtime
 
-# Build the release version of the application
-RUN cargo build --release
-
-# Install sqlx cli
-RUN cargo install sqlx-cli
-
-# Set environment variables (if needed)
-ENV DATABASE_URL="postgres://{appname}_dev:dev@localhost:5432/{appname}user?sslmode=disable"
-
-# Run SQLx migrations using the SQLx CLI
-RUN sqlx migrate run
-
-# Create a minimal runtime image
-FROM debian:buster-slim
-
-# Copy the compiled binary from the builder stage to the final image
-COPY --from=builder /app/target/release/user /usr/local/bin/user
-
-# Expose the port on which the Actix application will listen
-EXPOSE 8080
-
-# Run the Actix application
-CMD ["user"]
-
+WORKDIR /user 
+COPY --from=builder /user/target/release/user user
+COPY .env .env 
+ENTRYPOINT ["./user"]
+EXPOSE 8002
